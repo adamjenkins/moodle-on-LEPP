@@ -1,0 +1,67 @@
+ゼロから、Moodleのインストール (Nginx, php8.2-fpm, Postgresql)
+
+1. サーバを立ち上げる
+
+2. 必要なソフトのインストール
+　(Nginx, PHP, Postgres)
+
+3. Moodleコード入手
+　(各フォルダーの準備)
+
+4. HTTPSの設定
+
+5. 最初の実行(config.php作成)
+
+6. Moodle Login
+
+7. cronjobの設定
+
+# Make 2GB Swapfile -- MUST BE DONE AS root / 2GBのスワップファイルを作る　ルートとなって実行
+fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile && echo "/swapfile swap swap defaults 0 0" >> /etc/fstab
+
+# Install LEPP server / LEPPスタックをインストール
+sudo apt install ufw rsync git htop snapd nginx php-fpm php-pgsql php-curl php-xml php-xmlrpc php-intl php-soap php-gd php-mbstring php-yaml php-zip aspell graphviz ghostscript poppler-utils postgresql postgresql-contrib 
+
+# Configure a firewall / ファイヤーウォールを設定
+sudo ufw default deny && sudo ufw limit 22 && sudo ufw limit 80 && sudo ufw allow 443 && sudo ufw enable
+
+# Install Certbot for HTTPS / HTTPS用TLS証明書に必要なCertbotをインストール 
+sudo snap install core && sudo snap refresh core && sudo snap install --classic certbot && sudo ln -s /snap/bin/certbot /usr/bin/certbot
+
+# Setup Postgres Database / PostgresのSQLデータベースを設置
+sudo -u postgres psql
+CREATE USER moouser WITH PASSWORD 'motto_tsuyoi_pw_o_tsukatte_kudasai';
+CREATE DATABASE moodle WITH OWNER moouser;
+
+# Make Moodle folders / Moodleのデータフォルダを作成し、Moodleコードを入手
+cd /srv
+sudo mkdir moodle
+sudo chown adam:www-data moodle
+cd moodle
+sudo mkdir moodledata
+sudo chown www-data:www-data /srv/moodle/moodledata
+git clone https://github.com/moodle/moodle.git www
+sudo chown -R adam:www-data www
+cd www
+git checkout MOODLE_404_STABLE
+
+
+# Setup Nginx and get TLS cert / Nginx の設定とTLS証明書の取得
+cd /etc/nginx/sites-available
+sudo nano demo.wisecat.net
+cd /etc/nginx/sites-enabled
+sudo ln -s /etc/nginx/sites-available/demo.wisecat.net
+sudo nginx -t
+sudo systemctl restart nginx
+sudo certbot --nginx
+
+
+# Fixing PHP max_input_vars
+sudo nano /etc/php/8.2/cli/php.ini
+AND
+sudo nano /etc/php/8.2/fpm/php.ini
+
+
+# Don't forget to add a cronjob / cronjobの設定も忘れずに
+sudo -u www-data crontab -e
+* * * * * php /srv/moodle/www/admin/cli/cron.php > /dev/null 2>&1
